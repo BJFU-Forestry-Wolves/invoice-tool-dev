@@ -1,0 +1,15 @@
+#!/bin/sh
+
+set -eu
+
+staged_files=$(git diff --cached --name-only --diff-filter=ACMR)
+if printf '%s\n' "$staged_files" | grep -Eiq '\.(csv|tsv|xls|xlsx|xlsm|ods|pdf|jpe?g|png|bmp|tiff?)$|(^|/)(附件|private-data|local-data)(/|$)|\.ocr\.json$|(^|/)run_metadata\.json$'; then
+    echo "提交已阻止：暂存区包含可能含隐私的数据或附件文件。" >&2
+    printf '%s\n' "$staged_files" | grep -Ei '\.(csv|tsv|xls|xlsx|xlsm|ods|pdf|jpe?g|png|bmp|tiff?)$|(^|/)(附件|private-data|local-data)(/|$)|\.ocr\.json$|(^|/)run_metadata\.json$' >&2
+    exit 1
+fi
+
+if git diff --cached --no-ext-diff --unified=0 | grep -E '^\+[^+]' | grep -Eq 'BX[0-9]{8,}'; then
+    echo "提交已阻止：暂存内容疑似包含真实 BX 编号，请先脱敏。" >&2
+    exit 1
+fi

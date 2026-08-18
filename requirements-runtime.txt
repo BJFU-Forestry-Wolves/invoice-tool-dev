@@ -1,0 +1,6 @@
+# P0 local-verified matrix. Clean-machine offline validation is still pending.
+paddlepaddle==3.2.0
+paddleocr==3.7.0
+paddlex[ocr-core]==3.7.2
+Pillow==11.3.0
+openpyxl==3.1.5

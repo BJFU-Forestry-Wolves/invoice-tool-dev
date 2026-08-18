@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "privacy": "Copy this file outside the repository and replace only the generic sample names there.",
+  "sample_root": "../附件",
+  "samples": [
+    {"format": "jpg", "path": "sample-01.jpg"},
+    {"format": "jpeg", "path": "sample-02.jpeg"},
+    {"format": "png", "path": "sample-03.png"},
+    {"format": "bmp", "path": "sample-04.bmp"},
+    {"format": "pdf", "path": "sample-05.pdf"}
+  ]
+}

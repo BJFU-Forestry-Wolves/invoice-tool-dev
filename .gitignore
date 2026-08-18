@@ -1,0 +1,41 @@
+.build-venv/
+.ocr-venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Build and runtime output
+build/
+dist/
+logs/
+p0-results/
+p0-results-exe/
+p0-build/
+p0-dist/
+*.sqlite3
+
+# Private reimbursement source data must never be committed. The repository
+# also lives in its own sibling directory so these rules are defense in depth.
+附件/
+private-data/
+local-data/
+p0/smoke_samples.local.json
+*.csv
+*.tsv
+*.xls
+*.xlsx
+*.xlsm
+*.ods
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tif
+*.tiff
+*.ocr.json
+run_metadata.json
+
+# OCR model binaries are distributed separately; keep only the manifest.
+models/*
+!models/manifest.json
