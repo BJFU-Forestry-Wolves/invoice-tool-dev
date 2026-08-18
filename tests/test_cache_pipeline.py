@@ -1,7 +1,9 @@
 from pathlib import Path
 
 from order_date.cache_db import OCRCache
-from order_date.models import OCRPage, OCRTextBlock, SourceFile
+from datetime import datetime
+
+from order_date.models import ExtractionResult, OCRPage, OCRTextBlock, SourceFile
 from order_date.pipeline import process_sources
 
 
@@ -68,3 +70,27 @@ def test_failure_is_cached_for_resume(tmp_path: Path):
     assert second[0].status == "SKIPPED_CACHE"
     assert second[0].cached_status == "OCR_FAILED"
     assert engine.calls == 1
+
+
+def test_extraction_cache_is_invalidated_by_rule_version(tmp_path: Path):
+    result = ExtractionResult(
+        "BX123",
+        "sample.jpg",
+        "abc",
+        "jd",
+        20,
+        "ORDER-123",
+        datetime(2026, 8, 16, 12, 0),
+        90,
+        "AUTO_ACCEPTED",
+        "evidence",
+        "rules-v1",
+        1,
+    )
+    with OCRCache(tmp_path / "cache.sqlite3") as cache:
+        cache.store_extraction(result)
+        restored = cache.get_extraction("abc", "BX123", "rules-v1")
+        invalidated = cache.get_extraction("abc", "BX123", "rules-v2")
+
+    assert restored == result
+    assert invalidated is None

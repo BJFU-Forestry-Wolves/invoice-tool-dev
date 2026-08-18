@@ -1,0 +1,38 @@
+{
+  "version": "1.0.0",
+  "thresholds": {
+    "auto_accept": 85,
+    "needs_review": 60,
+    "candidate_conflict_delta": 8,
+    "platform_min_score": 20,
+    "platform_tie_delta": 10
+  },
+  "scores": {
+    "valid_full_date": 5,
+    "exact_label": 45,
+    "weak_label": 25,
+    "same_line_right": 20,
+    "below_label": 15,
+    "known_platform": 10,
+    "seconds_precision": 5,
+    "high_ocr_confidence": 5,
+    "unknown_platform": -10,
+    "ocr_correction": -10,
+    "excluded_label": -50,
+    "matching_attachment": 10
+  },
+  "spatial": {
+    "same_line_height_factor": 1.5,
+    "same_line_max_distance_factor": 35,
+    "below_max_vertical_factor": 10,
+    "below_max_horizontal_factor": 20,
+    "negative_nearby_factor": 15
+  },
+  "strong_order_date_labels": ["下单时间", "订单创建时间", "创建时间", "购买时间"],
+  "weak_order_date_labels": ["订单时间", "提交时间"],
+  "excluded_date_labels": ["支付时间", "付款时间", "发货时间", "收货时间", "完成时间", "成交时间", "退款时间", "开票时间"],
+  "generic_order_number_patterns": [
+    "订单编号[:：]?\\s*([0-9A-Za-z-]{8,})",
+    "订单号[:：]?\\s*([0-9A-Za-z-]{8,})"
+  ]
+}

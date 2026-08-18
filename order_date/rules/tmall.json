@@ -1,0 +1,11 @@
+{
+  "platform": "tmall",
+  "display_name": "天猫",
+  "version": "1.0.0",
+  "positive_keywords": ["天猫", "天猫超市", "TMALL"],
+  "negative_keywords": ["京东", "拼多多", "抖音商城"],
+  "order_date_labels": ["创建时间", "下单时间", "订单创建时间"],
+  "weak_order_date_labels": ["订单时间"],
+  "excluded_date_labels": ["付款时间", "发货时间", "成交时间", "退款时间"],
+  "order_number_patterns": ["订单编号[:：]?\\s*([0-9]{8,})"]
+}

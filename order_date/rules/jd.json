@@ -1,0 +1,11 @@
+{
+  "platform": "jd",
+  "display_name": "京东",
+  "version": "1.0.0",
+  "positive_keywords": ["京东", "京东物流", "京东订单", "JD.COM"],
+  "negative_keywords": ["淘宝", "天猫", "拼多多", "抖音商城"],
+  "order_date_labels": ["下单时间", "订单创建时间", "创建时间"],
+  "weak_order_date_labels": ["订单时间", "提交时间"],
+  "excluded_date_labels": ["支付时间", "付款时间", "发货时间", "完成时间"],
+  "order_number_patterns": ["订单编号[:：]?\\s*([0-9A-Za-z-]{8,})", "订单号[:：]?\\s*([0-9A-Za-z-]{8,})"]
+}

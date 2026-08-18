@@ -1,0 +1,11 @@
+{
+  "platform": "douyin",
+  "display_name": "抖音",
+  "version": "1.0.0",
+  "positive_keywords": ["抖音商城", "抖音", "DOUYIN"],
+  "negative_keywords": ["淘宝", "天猫", "京东", "拼多多"],
+  "order_date_labels": ["下单时间", "订单创建时间", "创建时间"],
+  "weak_order_date_labels": ["订单时间", "提交时间"],
+  "excluded_date_labels": ["支付时间", "发货时间", "完成时间", "成交时间"],
+  "order_number_patterns": ["订单编号[:：]?\\s*([0-9A-Za-z-]{8,})", "订单号[:：]?\\s*([0-9A-Za-z-]{8,})"]
+}

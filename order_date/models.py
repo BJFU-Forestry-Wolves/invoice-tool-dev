@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 
@@ -66,3 +67,63 @@ class ProcessingResult:
     cached_status: str | None = None
     error_code: str | None = None
     error_message: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PlatformDetection:
+    platform: str
+    display_name: str
+    score: float
+    positive_hits: tuple[str, ...]
+    negative_hits: tuple[str, ...]
+    rule_version: str
+
+
+@dataclass(frozen=True, slots=True)
+class DateCandidate:
+    raw_text: str
+    normalized_datetime: datetime
+    label: str | None
+    source_block_indexes: tuple[int, ...]
+    page_index: int
+    ocr_confidence: float
+    has_seconds: bool
+    corrected: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ScoredCandidate:
+    candidate: DateCandidate
+    score: float
+    reasons: tuple[str, ...]
+    negative_labels: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ExtractionResult:
+    bx_id: str
+    source_file: str
+    file_hash: str
+    platform: str
+    platform_score: float
+    order_number: str | None
+    order_datetime: datetime | None
+    confidence_score: float
+    status: str
+    evidence_text: str
+    rule_version: str
+    candidate_count: int
+    page_index: int | None = None
+    error_code: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AggregatedResult:
+    bx_id: str
+    order_number: str | None
+    order_datetime: datetime | None
+    confidence_score: float
+    status: str
+    source_files: tuple[str, ...]
+    evidence_text: str
+    rule_version: str
