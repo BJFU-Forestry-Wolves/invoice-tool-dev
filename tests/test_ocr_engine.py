@@ -7,9 +7,11 @@ from order_date.ocr_engine import PaddleOCREngine
 class FakePipeline:
     def predict_iter(self, _path: str):
         yield {
-            "rec_texts": [" ２０２６－０８－１６ "],
-            "rec_scores": [0.98],
-            "rec_polys": [[[0, 0], [10, 0], [10, 5], [0, 5]]],
+            "res": {
+                "rec_texts": [" ２０２６－０８－１６ "],
+                "rec_scores": [0.98],
+                "rec_polys": [[[0, 0], [10, 0], [10, 5], [0, 5]]],
+            }
         }
 
 

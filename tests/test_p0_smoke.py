@@ -50,3 +50,11 @@ def test_compact_payload_drops_preprocessed_image():
     )
 
     assert payload == {"rec_texts": ["下单时间"]}
+
+
+def test_compact_payload_unwraps_paddlex_result_envelope():
+    payload = p0_ocr_smoke.compact_ocr_payload(
+        {"res": {"rec_texts": ["下单时间"], "doc_preprocessor_res": {"output_img": [[1]]}}}
+    )
+
+    assert payload == {"rec_texts": ["下单时间"]}

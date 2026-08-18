@@ -106,6 +106,8 @@ def compact_ocr_payload(value: Any) -> Any:
         payload = value.to_dict()
     else:
         payload = value
+    if isinstance(payload, dict) and set(payload) == {"res"} and isinstance(payload["res"], dict):
+        payload = payload["res"]
     if isinstance(payload, dict):
         payload = {key: payload[key] for key in OCR_RESULT_FIELDS if key in payload}
     return json_safe(payload)

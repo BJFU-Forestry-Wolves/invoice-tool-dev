@@ -13,6 +13,9 @@ from .models import OCRPage
 from .ocr_normalizer import normalize_page
 
 
+OCR_ADAPTER_VERSION = "2"
+
+
 class OCRModelError(RuntimeError):
     pass
 
@@ -27,6 +30,7 @@ def _version(package: str) -> str:
 def engine_fingerprint(manifest_path: Path) -> str:
     digest = hashlib.sha256()
     digest.update(manifest_path.read_bytes())
+    digest.update(f"\0ocr_adapter={OCR_ADAPTER_VERSION}".encode())
     for package in ("paddleocr", "paddlepaddle", "paddlex"):
         digest.update(f"\0{package}={_version(package)}".encode())
     return digest.hexdigest()
@@ -66,6 +70,8 @@ def _payload(item: Any) -> dict[str, Any]:
         value = item
     if not isinstance(value, dict):
         raise ValueError(f"不支持的 PaddleOCR 结果类型: {type(value).__name__}")
+    if set(value) == {"res"} and isinstance(value["res"], dict):
+        value = value["res"]
     return value
 
 
