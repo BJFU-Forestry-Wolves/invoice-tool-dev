@@ -1,6 +1,5 @@
 """Order-date OCR and extraction package."""
 
-from .models import OCRTextBlock
+from .models import OCRPage, OCRTextBlock, ProcessingResult, SourceFile
 
-__all__ = ["OCRTextBlock"]
-
+__all__ = ["OCRPage", "OCRTextBlock", "ProcessingResult", "SourceFile"]

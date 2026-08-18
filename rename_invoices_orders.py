@@ -7,6 +7,9 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from order_date.file_grouper import build_file_indexes, find_files_by_bx_id
+from order_date.input_loader import load_expense_records, normalize_uploader as normalize_record_uploader
+
 INVALID_FILENAME_RE = re.compile(r'[\\/:*?"<>|]')
 CIRCLE_BASE = 0x2460
 DEFAULT_NAME_TEMPLATE = "{编号}_{上传人}_{用途}_{金额}_{附件标记}"
@@ -20,16 +23,6 @@ ALLOWED_TEMPLATE_FIELDS = {
     "序号",
     "总数",
 }
-
-REQUIRED_COLUMNS = {
-    "编号": "unique_id",
-    "上传人": "uploader",
-    "用途（必填）": "purpose",
-    "税后金额": "amount",
-    "发票": "invoice_filename",
-    "订单截图": "order_filename",
-}
-
 
 def configure_console_encoding():
     """让打包后的程序在 Windows 终端中稳定输出中文。"""
@@ -60,12 +53,7 @@ def sanitize_filename(text: str) -> str:
 
 
 def normalize_uploader(name: str) -> str:
-    if name is None:
-        return "未知上传者"
-    if isinstance(name, str):
-        normalized = name.replace("　", " ").strip()
-        return " ".join(normalized.split()) or "未知上传者"
-    return str(name).strip() or "未知上传者"
+    return normalize_record_uploader(name)
 
 
 def circle_suffix(index: int) -> str:
@@ -153,42 +141,10 @@ def reserve_target_path(target_path: Path, generated_targets: set):
 
 def parse_csv(path: Path):
     """读取飞书导出的 UTF-8 BOM CSV，并转换成程序内部字段。"""
-    records = []
-    with path.open("r", encoding="utf-8-sig", newline="") as csvfile:
-        reader = csv.DictReader(csvfile)
-        if reader.fieldnames is None:
-            raise ValueError("CSV 中没有表头。")
+    def report_skip(row_number: int, reason: str) -> None:
+        print(f"[SKIP] 第 {row_number} 行{reason}。")
 
-        reader.fieldnames = [str(column).strip() for column in reader.fieldnames]
-        missing = set(REQUIRED_COLUMNS) - set(reader.fieldnames)
-        if missing:
-            raise ValueError(f"CSV 缺少必需列: {sorted(missing)}")
-
-        for row_number, row in enumerate(reader, start=2):
-            normalized_row = {
-                str(key).strip(): "" if value is None else str(value).strip()
-                for key, value in row.items()
-                if key is not None
-            }
-            record = {
-                internal_name: normalized_row.get(column_name, "")
-                for column_name, internal_name in REQUIRED_COLUMNS.items()
-            }
-
-            if not record["unique_id"]:
-                print(f"[SKIP] 第 {row_number} 行编号为空。")
-                continue
-
-            if not any(record[field] for field in (
-                "uploader", "purpose", "amount", "invoice_filename", "order_filename"
-            )):
-                print(f"[SKIP] 第 {row_number} 行除编号外均为空: {record['unique_id']}")
-                continue
-
-            record["uploader"] = normalize_uploader(record["uploader"])
-            record["amount"] = record["amount"] or "未知金额"
-            records.append(record)
-    return records
+    return [record.as_legacy_dict() for record in load_expense_records(path, report_skip)]
 
 
 def count_comma_segments(value: str) -> int:
@@ -205,21 +161,11 @@ def _find_files_by_unique_id(directory: Path, unique_id: str):
     使用 glob 初步过滤后，再用正则确保精确匹配唯一编号，
     避免 BX123 误匹配 BX1234.pdf 这类前缀重叠。
     """
-    escaped = re.escape(unique_id)
-    exact_pattern = re.compile(rf"^{escaped}(?:\(\d+\))?\.[^.]+$", re.IGNORECASE)
-    candidates = list(directory.glob(f"{unique_id}*"))
-    files = [f for f in candidates if f.is_file() and exact_pattern.match(f.name)]
-    return sorted(files, key=lambda p: p.name)
+    return find_files_by_bx_id(directory, unique_id)
 
 
 def build_file_index(records, order_dir: Path, invoice_dir: Path):
-    order_index = defaultdict(list)
-    invoice_index = defaultdict(list)
-    unique_ids = {record["unique_id"] for record in records if record["unique_id"]}
-    for unique_id in unique_ids:
-        order_index[unique_id] = _find_files_by_unique_id(order_dir, unique_id)
-        invoice_index[unique_id] = _find_files_by_unique_id(invoice_dir, unique_id)
-    return order_index, invoice_index
+    return build_file_indexes(records, order_dir, invoice_dir)
 
 
 def copy_file(src: Path, dst: Path, dry_run: bool):
