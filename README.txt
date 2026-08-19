@@ -57,3 +57,9 @@ Excel 报告包含：订单日期汇总、附件识别明细、待人工复核�
   python order_date_report_cli.py --csv <CSV路径> --attach-root <附件根目录> --output-dir <结果目录>
 
 结果目录和缓存路径必须位于 Git 仓库之外。命令行同时生成 Excel 报告和可追溯的 JSON 规则结果。
+
+P4 全量验证可使用历史扫描摘要自动生成仓库外的最小验证清单：
+
+  python p4_full_validation_cli.py --scan-summary <扫描摘要.json> --golden-workbook <人工标注.xlsx> --attach-root <附件根目录> --output-dir <结果目录> --cache <OCR缓存.sqlite3>
+
+最小验证清单只用于日期识别验收，上传人、用途和金额为占位值。正式业务报告必须使用原始 CSV 运行 order_date_report_cli.py。
