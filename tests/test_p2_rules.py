@@ -74,6 +74,29 @@ def test_adjacent_payment_and_delivery_rows_do_not_override_order_date():
     assert result.status == "AUTO_ACCEPTED"
 
 
+def test_creation_time_row_is_not_penalized_by_excluded_labels_above():
+    page = OCRPage(
+        0,
+        (
+            block("天猫", 0, 0),
+            block("成交时间", 0, 40),
+            block("2026-03-29 10:14:21", 100, 40),
+            block("发货时间", 0, 80),
+            block("2026-03-19 10:14:11", 100, 80),
+            block("付款时间", 0, 120),
+            block("2026-03-19 08:29:37", 100, 120),
+            block("创建时间", 0, 160),
+            block("2026-03-19 08:29:25", 100, 160),
+        ),
+    )
+
+    result = extract_order_date("BX123", "sample.jpg", "hash", (page,), RULES)
+
+    assert result.order_datetime == datetime(2026, 3, 19, 8, 29, 25)
+    assert result.status == "AUTO_ACCEPTED"
+    assert "排除标签" not in result.evidence_text
+
+
 def extraction(source: str, order: str | None, moment: datetime, score: float = 80) -> ExtractionResult:
     return ExtractionResult(
         "BX123", source, source, "jd", 20, order, moment, score, "NEEDS_REVIEW", "evidence", RULES.version, 1

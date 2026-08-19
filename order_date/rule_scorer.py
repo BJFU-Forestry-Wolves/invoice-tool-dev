@@ -88,9 +88,16 @@ def score_candidates(
                 if block.page_index != candidate.page_index or label not in block.normalized_text:
                     continue
                 negative_spatial = {**spatial, "same_line_max_distance_factor": spatial["negative_nearby_factor"]}
-                if _relation(block, candidate_blocks, negative_spatial):
-                    negative_hits.append(label)
-                    break
+                negative_relation = _relation(block, candidate_blocks, negative_spatial)
+                if not negative_relation:
+                    continue
+                # A date explicitly paired with a positive label on the same row belongs to
+                # that row.  Timeline labels from earlier rows may still fall inside the
+                # deliberately generous "below" window, but must not penalize this date.
+                if relation == "same_line_right" and negative_relation == "below_label":
+                    continue
+                negative_hits.append(label)
+                break
         authoritative_labels = set(common["authoritative_order_date_labels"])
         if chosen_label in authoritative_labels and relation == "same_line_right":
             negative_hits = []

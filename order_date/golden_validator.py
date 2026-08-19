@@ -87,6 +87,8 @@ def validate_golden_dates(prediction_json: Path, workbook_path: Path) -> DateVal
     workbook = load_workbook(workbook_path, read_only=True, data_only=True)
     try:
         sheet = workbook["黄金样本标注"]
+        if sheet.max_row is None or sheet.max_column is None:
+            sheet.calculate_dimension(force=True)
         header_row = None
         headers = {}
         for candidate_row in range(1, min(sheet.max_row, 20) + 1):
