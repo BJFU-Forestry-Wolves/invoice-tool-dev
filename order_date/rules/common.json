@@ -29,8 +29,9 @@
     "negative_nearby_factor": 15
   },
   "strong_order_date_labels": ["下单时间", "订单创建时间", "创建时间", "购买时间"],
+  "authoritative_order_date_labels": ["下单时间", "订单创建时间"],
   "weak_order_date_labels": ["订单时间", "提交时间"],
-  "excluded_date_labels": ["支付时间", "付款时间", "发货时间", "收货时间", "完成时间", "成交时间", "退款时间", "开票时间"],
+  "excluded_date_labels": ["支付时间", "付款时间", "发货时间", "收货时间", "完成时间", "成交时间", "退款时间", "开票时间", "期望配送时间", "预计送达时间"],
   "generic_order_number_patterns": [
     "订单编号[:：]?\\s*([0-9A-Za-z-]{8,})",
     "订单号[:：]?\\s*([0-9A-Za-z-]{8,})"

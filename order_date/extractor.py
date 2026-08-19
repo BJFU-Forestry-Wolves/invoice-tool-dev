@@ -45,7 +45,7 @@ def extract_order_date(
     competing = [
         item
         for item in scored[1:]
-        if item.candidate.normalized_datetime != best.candidate.normalized_datetime
+        if item.candidate.normalized_datetime.date() != best.candidate.normalized_datetime.date()
         and best.score >= thresholds["needs_review"]
         and item.score >= thresholds["needs_review"]
         and best.score - item.score < threshold

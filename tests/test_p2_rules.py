@@ -54,6 +54,26 @@ def test_payment_date_is_not_auto_accepted():
     assert "排除标签" in result.evidence_text
 
 
+def test_adjacent_payment_and_delivery_rows_do_not_override_order_date():
+    page = OCRPage(
+        0,
+        (
+            block("京东订单", 0, 0),
+            block("支付时间", 0, 40),
+            block("2026-04-08 22:32:05", 100, 40),
+            block("下单时间", 0, 80),
+            block("2026-04-08 22:31:57", 100, 80),
+            block("期望配送时间", 0, 120),
+            block("2026-04-09 09:00", 100, 120),
+        ),
+    )
+
+    result = extract_order_date("BX123", "sample.jpg", "hash", (page,), RULES)
+
+    assert result.order_datetime == datetime(2026, 4, 8, 22, 31, 57)
+    assert result.status == "AUTO_ACCEPTED"
+
+
 def extraction(source: str, order: str | None, moment: datetime, score: float = 80) -> ExtractionResult:
     return ExtractionResult(
         "BX123", source, source, "jd", 20, order, moment, score, "NEEDS_REVIEW", "evidence", RULES.version, 1
@@ -72,3 +92,17 @@ def test_aggregator_boosts_matching_attachments_and_flags_conflict():
     assert matching[0].confidence_score == 90
     assert matching[0].status == "AUTO_ACCEPTED"
     assert conflict[0].status == "CONFLICT"
+
+
+def test_aggregator_treats_different_times_on_same_date_as_matching():
+    matching = aggregate_bx_results(
+        (
+            extraction("a", "ORDER-123", datetime(2026, 8, 16, 8, 0)),
+            extraction("b", "ORDER-123", datetime(2026, 8, 16, 20, 0)),
+        ),
+        RULES,
+    )
+
+    assert len(matching) == 1
+    assert matching[0].status == "AUTO_ACCEPTED"
+    assert matching[0].order_datetime.date() == datetime(2026, 8, 16).date()

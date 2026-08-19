@@ -87,9 +87,13 @@ def score_candidates(
             for block in blocks:
                 if block.page_index != candidate.page_index or label not in block.normalized_text:
                     continue
-                if _relation(block, candidate_blocks, {**spatial, "same_line_max_distance_factor": spatial["negative_nearby_factor"]}):
+                negative_spatial = {**spatial, "same_line_max_distance_factor": spatial["negative_nearby_factor"]}
+                if _relation(block, candidate_blocks, negative_spatial):
                     negative_hits.append(label)
                     break
+        authoritative_labels = set(common["authoritative_order_date_labels"])
+        if chosen_label in authoritative_labels and relation == "same_line_right":
+            negative_hits = []
         if negative_hits:
             value += scores["excluded_label"]
             reasons.append(f"排除标签 {','.join(negative_hits)} {scores['excluded_label']}")

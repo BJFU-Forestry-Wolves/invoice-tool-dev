@@ -39,11 +39,11 @@ def aggregate_bx_results(results: tuple[ExtractionResult, ...], rules: RuleSet) 
         groups = list(order_groups.values())
         by_date: dict[object, list[ExtractionResult]] = defaultdict(list)
         for result in no_order_number:
-            by_date[result.order_datetime].append(result)
+            by_date[result.order_datetime.date()].append(result)
         groups.extend(by_date.values())
         multiple_unknown_dates = len(by_date) > 1
         for group in groups:
-            dates = {result.order_datetime for result in group}
+            dates = {result.order_datetime.date() for result in group}
             source_files = tuple(sorted(result.source_file for result in group))
             order_number = group[0].order_number
             if len(dates) > 1:
@@ -62,6 +62,7 @@ def aggregate_bx_results(results: tuple[ExtractionResult, ...], rules: RuleSet) 
                 continue
             unique_hashes = {result.file_hash for result in group}
             score = max(result.confidence_score for result in group)
+            representative = max(group, key=lambda result: (result.confidence_score, result.order_datetime))
             evidence = group[0].evidence_text
             if len(unique_hashes) > 1:
                 score = min(100.0, score + boost)
@@ -76,7 +77,7 @@ def aggregate_bx_results(results: tuple[ExtractionResult, ...], rules: RuleSet) 
                 AggregatedResult(
                     bx_id,
                     order_number,
-                    next(iter(dates)),
+                    representative.order_datetime,
                     score,
                     status,
                     source_files,
