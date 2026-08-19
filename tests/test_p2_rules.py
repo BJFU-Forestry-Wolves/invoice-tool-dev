@@ -116,6 +116,26 @@ def test_creation_time_row_is_not_penalized_by_excluded_labels_above():
     assert "排除标签" not in result.evidence_text
 
 
+def test_creation_time_owns_date_when_payment_row_is_visually_close():
+    page = OCRPage(
+        0,
+        (
+            block("创建时间", 0, 40),
+            block("2026-04-16 17:57:17", 100, 40),
+            block("付款时间", 0, 64),
+            block("2026-04-16 17:57:29", 100, 64),
+            block("发货时间", 0, 88),
+            block("2026-04-16 18:18:50", 100, 88),
+        ),
+    )
+
+    result = extract_order_date("BX123", "sample.jpg", "hash", (page,), RULES)
+
+    assert result.order_datetime == datetime(2026, 4, 16, 17, 57, 17)
+    assert result.status == "AUTO_ACCEPTED"
+    assert "排除标签" not in result.evidence_text
+
+
 def extraction(source: str, order: str | None, moment: datetime, score: float = 80) -> ExtractionResult:
     return ExtractionResult(
         "BX123", source, source, "jd", 20, order, moment, score, "NEEDS_REVIEW", "evidence", RULES.version, 1
