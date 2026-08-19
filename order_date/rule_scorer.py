@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from .models import DateCandidate, OCRPage, PlatformDetection, ScoredCandidate
-from .rules_loader import PlatformRule, RuleSet
+from .models import DateCandidate, OCRPage, ScoredCandidate
+from .rules_loader import RuleSet
 
 
 def _bounds(block) -> tuple[float, float, float, float]:
@@ -39,23 +39,15 @@ def _relation(label_block, candidate_blocks, spatial) -> str | None:
 def score_candidates(
     pages: tuple[OCRPage, ...],
     candidates: tuple[DateCandidate, ...],
-    platform: PlatformDetection,
-    platform_rule: PlatformRule | None,
     rules: RuleSet,
 ) -> tuple[ScoredCandidate, ...]:
     blocks = tuple(block for page in pages for block in page.blocks)
     common = rules.common
     scores = common["scores"]
     spatial = common["spatial"]
-    strong_labels = tuple(platform_rule.order_date_labels if platform_rule else ()) + tuple(
-        common["strong_order_date_labels"]
-    )
-    weak_labels = tuple(platform_rule.weak_order_date_labels if platform_rule else ()) + tuple(
-        common["weak_order_date_labels"]
-    )
-    excluded_labels = tuple(platform_rule.excluded_date_labels if platform_rule else ()) + tuple(
-        common["excluded_date_labels"]
-    )
+    strong_labels = tuple(common["strong_order_date_labels"])
+    weak_labels = tuple(common["weak_order_date_labels"])
+    excluded_labels = tuple(common["excluded_date_labels"])
     results = []
     for candidate in candidates:
         value = float(scores["valid_full_date"])
@@ -104,12 +96,6 @@ def score_candidates(
         if negative_hits:
             value += scores["excluded_label"]
             reasons.append(f"排除标签 {','.join(negative_hits)} {scores['excluded_label']}")
-        if platform.platform == "unknown":
-            value += scores["unknown_platform"]
-            reasons.append(f"未知平台 {scores['unknown_platform']}")
-        else:
-            value += scores["known_platform"]
-            reasons.append(f"平台 {platform.platform} +{scores['known_platform']}")
         if candidate.has_seconds:
             value += scores["seconds_precision"]
             reasons.append(f"精确到秒 +{scores['seconds_precision']}")

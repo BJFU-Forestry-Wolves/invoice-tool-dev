@@ -74,6 +74,7 @@ def test_excel_report_has_four_sheets_typed_dates_and_links(tmp_path):
     review = workbook["待人工复核"]
     assert review.max_row == 2
     assert review["B2"].hyperlink is not None
+    assert "平台" not in review["E2"].value
     assert review["F2"].number_format == "yyyy-mm-dd"
     assert workbook["附件识别明细"].max_row == 2
     assert workbook["运行统计"]["A2"].value == "总文件数"

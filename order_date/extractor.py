@@ -21,7 +21,7 @@ def extract_order_date(
     platform_rule = next((rule for rule in rules.platforms if rule.platform == platform.platform), None)
     order_number = extract_order_number(pages, platform_rule, rules)
     candidates = extract_date_candidates(pages)
-    scored = score_candidates(pages, candidates, platform, platform_rule, rules)
+    scored = score_candidates(pages, candidates, rules)
     if not scored:
         return ExtractionResult(
             bx_id,

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 
-RULE_ENGINE_VERSION = "4"
+RULE_ENGINE_VERSION = "5"
 
 
 @dataclass(frozen=True, slots=True)

@@ -28,6 +28,25 @@ def test_platform_detection_and_strong_date_scoring():
     assert result.confidence_score >= 85
 
 
+def test_platform_detection_does_not_affect_date_acceptance():
+    known_page = OCRPage(
+        0,
+        (block("京东订单", 0, 0), block("下单时间", 0, 40), block("2026-08-16 12:34:56", 100, 40)),
+    )
+    unknown_page = OCRPage(
+        0,
+        (block("订单详情", 0, 0), block("下单时间", 0, 40), block("2026-08-16 12:34:56", 100, 40)),
+    )
+
+    known = extract_order_date("BX123", "known.jpg", "known", (known_page,), RULES)
+    unknown = extract_order_date("BX124", "unknown.jpg", "unknown", (unknown_page,), RULES)
+
+    assert known.platform == "jd"
+    assert unknown.platform == "unknown"
+    assert known.confidence_score == unknown.confidence_score
+    assert known.status == unknown.status == "AUTO_ACCEPTED"
+
+
 def test_date_extractor_rejects_invalid_calendar_date_and_supports_chinese():
     page = OCRPage(0, (block("2026年2月30日", 0, 0), block("2026年2月28日 08:01", 0, 30)))
 

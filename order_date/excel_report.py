@@ -118,7 +118,7 @@ def _suggestion(status: str) -> str:
         return "检查文件能否打开，必要时重新截图或转为 PNG/PDF"
     if status == "NO_ORDER_DATE":
         return "确认页面是否展示下单/创建日期；若只有付款或成交日期请备注"
-    return "核对平台、日期标签和候选日期后填写人工确认日期"
+    return "核对日期标签和候选日期后填写人工确认日期"
 
 
 def write_excel_report(
