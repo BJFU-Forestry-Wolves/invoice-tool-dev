@@ -1,5 +1,6 @@
 import contextlib
 import ctypes
+import os
 import queue
 import sys
 import threading
@@ -39,6 +40,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 import rename_invoices_orders as processor
+from order_date.workflow import WorkflowOptions, run_order_date_workflow
 
 
 class QueueWriter:
@@ -60,15 +62,21 @@ class InvoiceAttachmentApp(tk.Tk):
         self.dpi = self._get_window_dpi()
         self.ui_scale = self.dpi / 96.0
         self.tk.call("tk", "scaling", self.dpi / 72.0)
-        self.geometry(f"{round(820 * self.ui_scale)}x{round(610 * self.ui_scale)}")
-        self.minsize(round(720 * self.ui_scale), round(520 * self.ui_scale))
+        self.geometry(f"{round(860 * self.ui_scale)}x{round(700 * self.ui_scale)}")
+        self.minsize(round(760 * self.ui_scale), round(620 * self.ui_scale))
 
         self.csv_path = tk.StringVar()
         self.attach_root = tk.StringVar()
         self.output_dir = tk.StringVar()
         self.name_template = tk.StringVar(value=processor.DEFAULT_NAME_TEMPLATE)
         self.dry_run = tk.BooleanVar(value=True)
+        self.organize_task = tk.BooleanVar(value=True)
+        self.order_date_task = tk.BooleanVar(value=False)
+        self.only_changed = tk.BooleanVar(value=True)
+        self.force_recognition = tk.BooleanVar(value=False)
         self.status_text = tk.StringVar(value="请选择 CSV 和附件目录")
+        self.progress_text = tk.StringVar(value="")
+        self.stats_text = tk.StringVar(value="")
         self.event_queue = queue.Queue()
         self.running = False
 
@@ -107,7 +115,7 @@ class InvoiceAttachmentApp(tk.Tk):
         )
         ttk.Label(
             container,
-            text="选择导出的数据表和附件目录，先预演，确认后再正式复制。",
+            text="可整理附件，也可识别订单日期并生成四工作表 Excel 报告。",
             style="Hint.TLabel",
         ).grid(row=1, column=0, sticky="w", pady=(4, 14))
 
@@ -132,12 +140,35 @@ class InvoiceAttachmentApp(tk.Tk):
             style="Hint.TLabel",
         ).grid(row=4, column=1, columnspan=2, sticky="w", pady=(0, 5))
 
+        tasks = ttk.LabelFrame(form, text="处理任务", padding=8)
+        tasks.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+        ttk.Checkbutton(
+            tasks,
+            text="整理并重命名附件",
+            variable=self.organize_task,
+        ).pack(side="left", padx=(0, 16))
+        ttk.Checkbutton(
+            tasks,
+            text="识别订单下单日期并生成 Excel",
+            variable=self.order_date_task,
+        ).pack(side="left")
+
         options = ttk.Frame(form)
-        options.grid(row=5, column=1, columnspan=2, sticky="ew", pady=(6, 0))
+        options.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(8, 0))
         ttk.Checkbutton(
             options,
-            text="仅预演（不复制文件、不生成汇总表）",
+            text="附件整理仅预演",
             variable=self.dry_run,
+        ).pack(side="left", padx=(0, 16))
+        ttk.Checkbutton(
+            options,
+            text="订单识别仅处理新增或变化文件",
+            variable=self.only_changed,
+        ).pack(side="left", padx=(0, 16))
+        ttk.Checkbutton(
+            options,
+            text="强制重新 OCR",
+            variable=self.force_recognition,
         ).pack(side="left")
 
         log_frame = ttk.LabelFrame(container, text="处理日志", padding=8)
@@ -162,12 +193,18 @@ class InvoiceAttachmentApp(tk.Tk):
         status_area.grid(row=0, column=0, sticky="ew")
         status_area.columnconfigure(0, weight=1)
         ttk.Label(status_area, textvariable=self.status_text).grid(row=0, column=0, sticky="w")
-        self.progress = ttk.Progressbar(status_area, mode="indeterminate", length=180)
+        self.progress = ttk.Progressbar(status_area, mode="determinate", maximum=100, length=220)
         self.progress.grid(row=0, column=1, sticky="e", padx=(12, 0))
         self.progress.grid_remove()
+        ttk.Label(footer, textvariable=self.progress_text, style="Hint.TLabel").grid(
+            row=1, column=0, sticky="w", pady=(4, 0)
+        )
+        ttk.Label(footer, textvariable=self.stats_text, style="Hint.TLabel").grid(
+            row=2, column=0, sticky="w", pady=(2, 0)
+        )
 
         buttons = ttk.Frame(footer)
-        buttons.grid(row=1, column=0, sticky="e", pady=(10, 0))
+        buttons.grid(row=3, column=0, sticky="e", pady=(10, 0))
         self.clear_button = ttk.Button(buttons, text="清空日志", command=self._clear_log)
         self.clear_button.pack(side="left", padx=(0, 8))
         self.start_button = ttk.Button(
@@ -234,7 +271,9 @@ class InvoiceAttachmentApp(tk.Tk):
             raise ValueError("请选择存在的 CSV 数据表。")
         if not self.attach_root.get().strip() or not attach_root.is_dir():
             raise ValueError("请选择存在的附件根目录。")
-        if not (attach_root / "发票").is_dir():
+        if not self.organize_task.get() and not self.order_date_task.get():
+            raise ValueError("请至少选择一个处理任务。")
+        if self.organize_task.get() and not (attach_root / "发票").is_dir():
             raise ValueError("附件根目录中缺少“发票”子目录。")
         if not (attach_root / "订单截图").is_dir():
             raise ValueError("附件根目录中缺少“订单截图”子目录。")
@@ -242,11 +281,13 @@ class InvoiceAttachmentApp(tk.Tk):
         output_text = self.output_dir.get().strip()
         output_dir = Path(output_text) if output_text else csv_path.parent / "重命名结果"
         self.output_dir.set(str(output_dir))
-        try:
-            name_template = processor.validate_name_template(self.name_template.get())
-        except ValueError as error:
-            raise ValueError(str(error)) from error
-        self.name_template.set(name_template)
+        name_template = self.name_template.get()
+        if self.organize_task.get():
+            try:
+                name_template = processor.validate_name_template(name_template)
+            except ValueError as error:
+                raise ValueError(str(error)) from error
+            self.name_template.set(name_template)
         return csv_path, attach_root, output_dir, name_template
 
     def _start_processing(self):
@@ -259,10 +300,11 @@ class InvoiceAttachmentApp(tk.Tk):
             messagebox.showerror("输入有误", str(error), parent=self)
             return
 
-        if not self.dry_run.get():
+        if self.organize_task.get() and not self.dry_run.get():
+            extra = "，并生成订单日期 Excel 报告" if self.order_date_task.get() else ""
             confirmed = messagebox.askyesno(
                 "确认正式处理",
-                "程序将复制并重命名附件，同时生成 summary.csv。是否继续？",
+                f"程序将复制并重命名附件，同时生成 summary.csv{extra}。是否继续？",
                 parent=self,
             )
             if not confirmed:
@@ -273,31 +315,73 @@ class InvoiceAttachmentApp(tk.Tk):
         self.start_button.configure(state="disabled")
         self.clear_button.configure(state="disabled")
         self.progress.grid()
-        self.progress.start(12)
-        self.status_text.set("正在预演…" if self.dry_run.get() else "正在处理…")
+        self.progress["value"] = 0
+        self.progress_text.set("")
+        self.stats_text.set("")
+        self.status_text.set("正在处理…")
 
         worker = threading.Thread(
             target=self._run_worker,
-            args=(csv_path, attach_root, output_dir, name_template, self.dry_run.get()),
+            args=(
+                csv_path,
+                attach_root,
+                output_dir,
+                name_template,
+                self.dry_run.get(),
+                self.organize_task.get(),
+                self.order_date_task.get(),
+                self.only_changed.get(),
+                self.force_recognition.get(),
+            ),
             daemon=True,
         )
         worker.start()
 
-    def _run_worker(self, csv_path, attach_root, output_dir, name_template, dry_run):
-        arguments = [
-            "--csv", str(csv_path),
-            "--attach-root", str(attach_root),
-            "--output-dir", str(output_dir),
-            "--name-template", name_template,
-        ]
-        if dry_run:
-            arguments.append("--dry-run")
-
+    def _run_worker(
+        self,
+        csv_path,
+        attach_root,
+        output_dir,
+        name_template,
+        dry_run,
+        organize_task,
+        order_date_task,
+        only_changed,
+        force_recognition,
+    ):
         writer = QueueWriter(self.event_queue)
         try:
             with contextlib.redirect_stdout(writer), contextlib.redirect_stderr(writer):
-                processor.main(arguments)
-            self.event_queue.put(("done", dry_run))
+                if organize_task:
+                    arguments = [
+                        "--csv", str(csv_path),
+                        "--attach-root", str(attach_root),
+                        "--output-dir", str(output_dir),
+                        "--name-template", name_template,
+                    ]
+                    if dry_run:
+                        arguments.append("--dry-run")
+                    processor.main(arguments)
+                report_path = None
+                if order_date_task:
+                    result = run_order_date_workflow(
+                        WorkflowOptions(
+                            csv_path=csv_path,
+                            attach_root=attach_root,
+                            output_dir=output_dir,
+                            cache_path=output_dir / ".order_date_cache.sqlite3",
+                            force_reprocess=force_recognition or not only_changed,
+                        ),
+                        lambda payload: self.event_queue.put(("progress", payload)),
+                    )
+                    report_path = result.report_path
+                    print(f"订单日期报告已生成: {report_path}")
+            self.event_queue.put(
+                (
+                    "done",
+                    {"dry_run": dry_run, "organized": organize_task, "report_path": report_path},
+                )
+            )
         except BaseException as error:
             self.event_queue.put(("log", traceback.format_exc()))
             self.event_queue.put(("error", str(error) or error.__class__.__name__))
@@ -308,6 +392,8 @@ class InvoiceAttachmentApp(tk.Tk):
                 event, payload = self.event_queue.get_nowait()
                 if event == "log":
                     self._append_log(payload)
+                elif event == "progress":
+                    self._update_progress(payload)
                 elif event == "done":
                     self._finish_success(payload)
                 elif event == "error":
@@ -329,14 +415,47 @@ class InvoiceAttachmentApp(tk.Tk):
 
     def _reset_running_state(self):
         self.running = False
-        self.progress.stop()
         self.progress.grid_remove()
         self.start_button.configure(state="normal")
         self.clear_button.configure(state="normal")
 
-    def _finish_success(self, dry_run):
+    def _update_progress(self, payload):
+        stage_labels = {
+            "scan": "扫描",
+            "ocr": "缓存/OCR",
+            "rules": "日期规则",
+            "excel": "Excel 报告",
+        }
+        stage = str(payload.get("stage", ""))
+        current = int(payload.get("current", 0) or 0)
+        total = int(payload.get("total", 0) or 0)
+        current_file = str(payload.get("current_file", "") or "")
+        self.progress["value"] = current / total * 100 if total else 0
+        label = stage_labels.get(stage, stage)
+        self.status_text.set(f"当前阶段：{label}")
+        self.progress_text.set(f"{current}/{total}  {current_file}" if total else current_file)
+        if any(key in payload for key in ("accepted", "review", "failed")):
+            self.stats_text.set(
+                f"自动通过 {payload.get('accepted', 0)} ｜ 待复核 {payload.get('review', 0)} ｜ 失败 {payload.get('failed', 0)}"
+            )
+
+    def _finish_success(self, payload):
         self._reset_running_state()
-        if dry_run:
+        dry_run = payload["dry_run"]
+        report_path = payload.get("report_path")
+        if report_path:
+            self.status_text.set("处理完成，订单日期报告已生成")
+            should_open = messagebox.askyesno(
+                "处理完成",
+                f"订单日期报告已经生成：\n{report_path}\n\n是否立即打开？",
+                parent=self,
+            )
+            if should_open:
+                try:
+                    os.startfile(report_path)
+                except OSError as error:
+                    messagebox.showerror("无法打开报告", str(error), parent=self)
+        elif dry_run:
             self.status_text.set("预演完成，没有复制文件")
             messagebox.showinfo("预演完成", "请检查日志；本次没有复制文件。", parent=self)
         else:

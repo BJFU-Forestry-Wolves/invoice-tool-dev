@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
@@ -21,22 +22,25 @@ def process_sources(
     engine_fingerprint_value: str,
     engine: OCREngine | None,
     force: bool = False,
+    on_progress: Callable[[int, int, ProcessingResult], None] | None = None,
 ) -> tuple[ProcessingResult, ...]:
     results: list[ProcessingResult] = []
-    for source in sources:
+    total = len(sources)
+    for current, source in enumerate(sources, start=1):
         cached = None if force else cache.get(source.file_hash, engine_fingerprint_value)
         if cached is not None:
-            results.append(
-                ProcessingResult(
-                    source=source,
-                    status="SKIPPED_CACHE",
-                    pages=cached.pages,
-                    cache_hit=True,
-                    cached_status=cached.status,
-                    error_code=cached.error_code,
-                    error_message=cached.error_message,
-                )
+            result = ProcessingResult(
+                source=source,
+                status="SKIPPED_CACHE",
+                pages=cached.pages,
+                cache_hit=True,
+                cached_status=cached.status,
+                error_code=cached.error_code,
+                error_message=cached.error_message,
             )
+            results.append(result)
+            if on_progress:
+                on_progress(current, total, result)
             continue
         if engine is None:
             raise RuntimeError("存在未缓存文件，但 OCR 引擎尚未初始化")
@@ -46,17 +50,19 @@ def process_sources(
             error_code = "OCR_PREDICT_FAILED"
             message = f"{type(exc).__name__}: {exc}"
             cache.store_failure(source, engine_fingerprint_value, error_code, message)
-            results.append(
-                ProcessingResult(
-                    source=source,
-                    status="OCR_FAILED",
-                    error_code=error_code,
-                    error_message=message,
-                )
+            result = ProcessingResult(
+                source=source,
+                status="OCR_FAILED",
+                error_code=error_code,
+                error_message=message,
             )
+            results.append(result)
         else:
             cache.store_success(source, engine_fingerprint_value, pages)
-            results.append(ProcessingResult(source=source, status="OCR_SUCCEEDED", pages=pages))
+            result = ProcessingResult(source=source, status="OCR_SUCCEEDED", pages=pages)
+            results.append(result)
+        if on_progress:
+            on_progress(current, total, result)
     return tuple(results)
 
 
