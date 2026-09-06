@@ -18,9 +18,10 @@
 提交前至少执行：
 
 ```powershell
+python scripts/privacy_check.py --scope all
+python scripts/privacy_check.py --scope history
 git status --short
 git diff --cached --name-only
-git grep -n -I -E "BX[0-9]{8,}|身份证|银行卡"
 ```
 
 仓库通过 `core.hooksPath=.githooks` 启用提交钩子。钩子会阻止上述敏感文件类型及疑似真实 BX 编号进入新提交。

@@ -3,6 +3,7 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+node_modules/
 
 # Build and runtime output
 build/
@@ -39,3 +40,11 @@ run_metadata.json
 # OCR model binaries are distributed separately; keep only the manifest.
 models/*
 !models/manifest.json
+
+# Public-release safety
+private-*/
+*.part
+*.zip
+*.sha256
+release-assets/
+config/release.local.json
