@@ -33,6 +33,7 @@ def _merge_review_items(items: list[ReviewItem]) -> tuple[ReviewItem, ...]:
 def aggregate_daily_merchants(
     results: tuple[InvoiceIssuerResult, ...],
     contexts_by_path: dict[str, tuple[InvoiceContext, ...]],
+    limit: Decimal = LIMIT,
 ) -> tuple[tuple[DailyMerchantGroup, ...], tuple[ReviewItem, ...]]:
     by_record: dict[tuple[str, object], list[tuple[InvoiceIssuerResult, InvoiceContext]]] = defaultdict(list)
     review: list[ReviewItem] = []
@@ -116,7 +117,7 @@ def aggregate_daily_merchants(
     groups = []
     for (order_date, normalized), bucket in sorted(grouped.items()):
         total = bucket["amount"]
-        status = "EXCEEDED" if total > LIMIT else "WITHIN_LIMIT"
+        status = "EXCEEDED" if total > limit else "WITHIN_LIMIT"
         bx_ids = tuple(sorted(bucket["bx_ids"]))
         groups.append(
             DailyMerchantGroup(

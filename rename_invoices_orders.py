@@ -14,6 +14,7 @@ INVALID_FILENAME_RE = re.compile(r'[\\/:*?"<>|]')
 CIRCLE_BASE = 0x2460
 DEFAULT_NAME_TEMPLATE = "{编号}_{上传人}_{用途}_{金额}_{附件标记}"
 ALLOWED_TEMPLATE_FIELDS = {
+    "下单日期",
     "编号",
     "上传人",
     "用途",
@@ -108,6 +109,7 @@ def render_target_filename(
     index: int,
     total: int,
     suffix: str,
+    order_date: str = "",
 ) -> str:
     if attachment_type == "发票" and total == 1:
         attachment_mark = "发票"
@@ -115,6 +117,7 @@ def render_target_filename(
         attachment_mark = f"{attachment_type}{index}(共{total})"
 
     values = {
+        "下单日期": safe_text(order_date),
         "编号": safe_text(unique_id),
         "上传人": safe_text(uploader),
         "用途": safe_text(purpose),

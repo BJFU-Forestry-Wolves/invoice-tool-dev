@@ -15,6 +15,7 @@ from order_date.models import ProcessingResult
 from order_date.pipeline import build_engine, fingerprint_without_loading_engine, process_sources, scan_inputs
 
 from .aggregator import LIMIT, aggregate_daily_merchants
+from .excel_report import write_invoice_issuer_report
 from .extractor import EXTRACTOR_VERSION, extract_invoice_issuer
 from .manifest_loader import load_invoice_contexts
 from .models import InvoiceIssuerResult
@@ -35,11 +36,13 @@ class WorkflowOptions:
     cpu_threads: int = max(1, min(4, os.cpu_count() or 1))
     force_reprocess: bool = False
     limit: int | None = None
+    daily_limit: Decimal = LIMIT
 
 
 @dataclass(frozen=True, slots=True)
 class WorkflowResult:
     result_json_path: Path
+    report_path: Path
     total_files: int
     accepted: int
     review: int
@@ -147,7 +150,7 @@ def run_invoice_issuer_workflow(
         )
 
     result_tuple = tuple(results)
-    groups, review_items = aggregate_daily_merchants(result_tuple, contexts)
+    groups, review_items = aggregate_daily_merchants(result_tuple, contexts, options.daily_limit)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir.mkdir(parents=True, exist_ok=True)
     result_json_path = output_dir / f"发票开票公司识别结果_{timestamp}.json"
@@ -155,7 +158,7 @@ def run_invoice_issuer_workflow(
         "schema_version": "1",
         "extractor_version": EXTRACTOR_VERSION,
         "engine_fingerprint": fingerprint,
-        "daily_limit": str(LIMIT),
+        "daily_limit": str(options.daily_limit),
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "stats": {
             "total_files": len(result_tuple),
@@ -176,9 +179,19 @@ def run_invoice_issuer_workflow(
         "scan_issues": [_serialize(asdict(item)) for item in scan.issues],
     }
     result_json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    report_path = output_dir / f"发票开票公司识别报告_{timestamp}.xlsx"
+    write_invoice_issuer_report(
+        report_path,
+        groups=groups,
+        results=result_tuple,
+        review_items=review_items,
+        daily_limit=options.daily_limit,
+        stats=payload["stats"],
+    )
     _emit(progress_callback, stage="done", current=len(result_tuple), total=len(result_tuple), current_file=result_json_path.name)
     return WorkflowResult(
         result_json_path,
+        report_path,
         len(result_tuple),
         counters["AUTO_ACCEPTED"],
         counters["NEEDS_REVIEW"] + counters["NO_ISSUER"],

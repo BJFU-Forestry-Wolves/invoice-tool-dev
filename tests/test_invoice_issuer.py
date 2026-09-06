@@ -16,20 +16,20 @@ def test_extracts_seller_name_instead_of_buyer_name():
         0,
         (
             block("购买方信息", 0, 40),
-            block("名称：北京林业大学", 60, 40),
+            block("名称：示例购买单位", 60, 40),
             block("销售方信息", 500, 40),
-            block("名称：辽宁全景智能科技有限公司", 560, 40),
+            block("名称：示例甲智能科技有限公司", 560, 40),
         ),
     )
 
     result = extract_invoice_issuer("BX1", "BX1.pdf", "hash", (page,))
 
-    assert result.issuer_name == "辽宁全景智能科技有限公司"
+    assert result.issuer_name == "示例甲智能科技有限公司"
     assert result.status == "AUTO_ACCEPTED"
 
 
 def test_normalizes_company_spacing_and_parentheses():
-    assert normalize_issuer_name("苏州 优逸思（电子）科技有限公司") == "苏州优逸思电子科技有限公司"
+    assert normalize_issuer_name("示例市 甲乙（电子）科技有限公司") == "示例市甲乙电子科技有限公司"
 
 
 def test_groups_railway_e_ticket_without_inventing_legal_company():
@@ -54,15 +54,15 @@ def test_accepts_sales_office_and_seller_legacy_label():
         0,
         (
             block("购买方", 0, 40),
-            block("名称：北京林业大学", 30, 70),
+            block("名称：示例购买单位", 30, 70),
             block("销货方", 500, 40),
-            block("名称：临西县志兴轴承销售处", 530, 70),
+            block("名称：示例县甲乙轴承销售处", 530, 70),
         ),
     )
 
     result = extract_invoice_issuer("BX1", "BX1.pdf", "hash", (page,))
 
-    assert result.issuer_name == "临西县志兴轴承销售处"
+    assert result.issuer_name == "示例县甲乙轴承销售处"
     assert result.status == "AUTO_ACCEPTED"
 
 
@@ -71,15 +71,15 @@ def test_accepts_sole_proprietorship_legal_form():
         0,
         (
             block("购买方信息", 0, 40),
-            block("名称：北京林业大学", 30, 70),
+            block("名称：示例购买单位", 30, 70),
             block("销售方信息", 500, 40),
-            block("名称：襄阳市襄州区经济销售铺（个人独资）", 530, 70),
+            block("名称：示例市甲区零件销售铺（个人独资）", 530, 70),
         ),
     )
 
     result = extract_invoice_issuer("BX1", "BX1.pdf", "hash", (page,))
 
-    assert result.issuer_name == "襄阳市襄州区经济销售铺(个人独资)"
+    assert result.issuer_name == "示例市甲区零件销售铺(个人独资)"
     assert result.status == "AUTO_ACCEPTED"
 
 
@@ -99,7 +99,7 @@ def test_preserves_parenthesized_individual_business_legal_form():
 
 
 def test_marks_supporting_document_as_not_invoice():
-    page = OCRPage(0, (block("京东快递——运单明细", 0, 0), block("公司名称 北京林业大学", 0, 40)))
+    page = OCRPage(0, (block("电商快递——运单明细", 0, 0), block("公司名称 示例购买单位", 0, 40)))
 
     result = extract_invoice_issuer("BX1", "BX1.pdf", "hash", (page,))
 
@@ -142,6 +142,17 @@ def test_aggregates_once_per_bx_date_and_flags_over_1000():
     assert len(groups) == 1
     assert groups[0].total_amount == Decimal("1050")
     assert groups[0].status == "EXCEEDED"
+
+
+def test_custom_daily_limit_changes_group_status():
+    day = date(2026, 4, 16)
+    results = (issuer_result("BX1", "BX1.pdf", "示例科技有限公司"),)
+    contexts = {"bx1.pdf": (context("BX1", "BX1.pdf", "1200", day),)}
+
+    groups, review = aggregate_daily_merchants(results, contexts, Decimal("1500"))
+
+    assert not review
+    assert groups[0].status == "WITHIN_LIMIT"
 
 
 def test_does_not_double_count_multiple_same_issuer_invoices_for_one_bx():
