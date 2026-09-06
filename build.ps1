@@ -1,10 +1,17 @@
+param(
+    [string]$PythonExecutable = ""
+)
+
 $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$BuildPython = Join-Path $ProjectRoot ".build-venv\Scripts\python.exe"
-$EntryScript = Join-Path $ProjectRoot "invoice_attachment_gui.py"
-$ManifestFile = Join-Path $ProjectRoot "app.manifest"
-$UsageGuide = Join-Path $ProjectRoot "README.txt"
+$BuildPython = if ($PythonExecutable) {
+    [System.IO.Path]::GetFullPath((Join-Path $ProjectRoot $PythonExecutable))
+} else {
+    Join-Path $ProjectRoot ".build-venv\Scripts\python.exe"
+}
+$SpecFile = Join-Path $ProjectRoot "invoice_attachment_tool.spec"
+$UsageGuide = Join-Path $ProjectRoot "README.md"
 $DistDirectory = Join-Path $ProjectRoot "dist"
 $WorkDirectory = Join-Path $ProjectRoot "build"
 $ApplicationName = "invoice_attachment_tool"
@@ -27,15 +34,11 @@ function Remove-SafeBuildDirectory {
 }
 
 if (-not (Test-Path -LiteralPath $BuildPython -PathType Leaf)) {
-    throw "未找到构建环境。请先执行: python -m venv .build-venv"
+    throw "未找到构建环境。请先执行: python -m venv .build-venv，或使用 -PythonExecutable 指定 Python"
 }
 
-if (-not (Test-Path -LiteralPath $EntryScript -PathType Leaf)) {
-    throw "未找到入口脚本: $EntryScript"
-}
-
-if (-not (Test-Path -LiteralPath $ManifestFile -PathType Leaf)) {
-    throw "Manifest file not found: $ManifestFile"
+if (-not (Test-Path -LiteralPath $SpecFile -PathType Leaf)) {
+    throw "未找到 PyInstaller spec: $SpecFile"
 }
 
 Push-Location $ProjectRoot
@@ -47,21 +50,19 @@ try {
     & $BuildPython -m PyInstaller `
         --noconfirm `
         --clean `
-        --onefile `
-        --windowed `
-        --manifest $ManifestFile `
-        --name $ApplicationName `
         --distpath $DistDirectory `
         --workpath $WorkDirectory `
-        --specpath $WorkDirectory `
-        $EntryScript
+        $SpecFile
 
     if ($LASTEXITCODE -ne 0) {
         throw "PyInstaller 打包失败，退出码: $LASTEXITCODE"
     }
 
-    Copy-Item -LiteralPath $UsageGuide -Destination $DistDirectory -Force
-    Write-Host "Build complete: $(Join-Path $DistDirectory ($ApplicationName + '.exe'))"
+    $ApplicationDirectory = Join-Path $DistDirectory $ApplicationName
+    foreach ($File in @($UsageGuide, (Join-Path $ProjectRoot "LICENSE"), (Join-Path $ProjectRoot "THIRD_PARTY_NOTICES.md"))) {
+        Copy-Item -LiteralPath $File -Destination $ApplicationDirectory -Force
+    }
+    Write-Host "Build complete: $(Join-Path $ApplicationDirectory ($ApplicationName + '.exe'))"
 }
 finally {
     Pop-Location
