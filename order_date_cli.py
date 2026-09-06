@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from collections import Counter
 from pathlib import Path
 
 from order_date.cache_db import OCRCache
 from order_date.input_loader import load_expense_records
+from order_date.model_manager import default_models_dir
 from order_date.pipeline import build_engine, fingerprint_without_loading_engine, process_sources, scan_inputs
 
 
@@ -32,13 +32,6 @@ def configure_console_encoding() -> None:
                 pass
 
 
-def default_models_dir() -> Path:
-    local_app_data = os.environ.get("LOCALAPPDATA")
-    if local_app_data:
-        return Path(local_app_data) / "InvoiceAttachmentTool" / "models"
-    return PROJECT_ROOT / ".paddlex-model-cache"
-
-
 def ensure_outside_repository(path: Path, label: str) -> Path:
     resolved = path.resolve()
     if resolved == PROJECT_ROOT or resolved.is_relative_to(PROJECT_ROOT):
@@ -54,7 +47,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cache", type=Path, help="SQLite 缓存；默认位于附件根目录的上级目录")
     parser.add_argument("--summary", type=Path, help="可选 JSON 运行摘要，必须位于 Git 仓库外")
     parser.add_argument("--models-dir", type=Path, default=default_models_dir())
-    parser.add_argument("--cpu-threads", type=int, default=max(1, min(4, os.cpu_count() or 1)))
+    parser.add_argument("--cpu-threads", type=int, default=4)
     parser.add_argument("--limit", type=int)
     parser.add_argument("--force", action="store_true", help="忽略已有 OCR 缓存")
     parser.add_argument("--scan-only", action="store_true", help="只扫描、校验和计算哈希，不运行 OCR")

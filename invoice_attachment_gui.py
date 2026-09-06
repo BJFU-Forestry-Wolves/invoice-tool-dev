@@ -41,6 +41,8 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 import rename_invoices_orders as processor
 from order_date.workflow import WorkflowOptions, run_order_date_workflow
+from order_date.model_manager import download_and_install, inspect_models
+from version import __version__
 
 
 class QueueWriter:
@@ -77,11 +79,16 @@ class InvoiceAttachmentApp(tk.Tk):
         self.status_text = tk.StringVar(value="请选择 CSV 和附件目录")
         self.progress_text = tk.StringVar(value="")
         self.stats_text = tk.StringVar(value="")
+        self.model_status_text = tk.StringVar(value="正在检查模型…")
+        self.model_source = tk.StringVar(value="自动")
         self.event_queue = queue.Queue()
         self.running = False
+        self.model_downloading = False
+        self.resume_after_model_download = False
 
         self._configure_style()
         self._build_ui()
+        self._refresh_model_status()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(100, self._poll_events)
 
@@ -170,6 +177,20 @@ class InvoiceAttachmentApp(tk.Tk):
             text="强制重新 OCR",
             variable=self.force_recognition,
         ).pack(side="left")
+
+        model_frame = ttk.LabelFrame(form, text="OCR 模型", padding=8)
+        model_frame.grid(row=7, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+        model_frame.columnconfigure(0, weight=1)
+        ttk.Label(model_frame, textvariable=self.model_status_text).grid(row=0, column=0, sticky="w")
+        ttk.Combobox(
+            model_frame,
+            textvariable=self.model_source,
+            values=("自动", "GitHub", "镜像"),
+            state="readonly",
+            width=9,
+        ).grid(row=0, column=1, padx=(8, 8))
+        self.model_button = ttk.Button(model_frame, text="一键获取模型", command=self._download_models)
+        self.model_button.grid(row=0, column=2)
 
         log_frame = ttk.LabelFrame(container, text="处理日志", padding=8)
         log_frame.grid(row=3, column=0, sticky="nsew", pady=(14, 0))
@@ -290,6 +311,36 @@ class InvoiceAttachmentApp(tk.Tk):
             self.name_template.set(name_template)
         return csv_path, attach_root, output_dir, name_template
 
+    def _refresh_model_status(self):
+        status = inspect_models()
+        self.model_status_text.set("模型已就绪" if status.ready else "模型未安装或校验失败")
+        return status
+
+    def _download_models(self, resume_processing=False):
+        if self.running or self.model_downloading:
+            return
+        source = {"自动": "auto", "GitHub": "github", "镜像": "mirror"}[self.model_source.get()]
+        self.model_downloading = True
+        self.resume_after_model_download = bool(resume_processing)
+        self.start_button.configure(state="disabled")
+        self.model_button.configure(state="disabled")
+        self.progress.grid()
+        self.progress["value"] = 0
+        self.status_text.set("正在获取 OCR 模型…")
+        worker = threading.Thread(target=self._run_model_download, args=(source,), daemon=True)
+        worker.start()
+
+    def _run_model_download(self, source):
+        try:
+            status = download_and_install(
+                source=source,
+                progress=lambda payload: self.event_queue.put(("progress", payload)),
+            )
+            self.event_queue.put(("model_done", status))
+        except BaseException as error:
+            self.event_queue.put(("log", traceback.format_exc()))
+            self.event_queue.put(("model_error", str(error) or error.__class__.__name__))
+
     def _start_processing(self):
         if self.running:
             return
@@ -299,6 +350,18 @@ class InvoiceAttachmentApp(tk.Tk):
         except ValueError as error:
             messagebox.showerror("输入有误", str(error), parent=self)
             return
+
+        if self.order_date_task.get():
+            model_status = self._refresh_model_status()
+            if not model_status.ready:
+                confirmed = messagebox.askyesno(
+                    "需要 OCR 模型",
+                    "订单日期识别需要先获取 OCR 模型。是否现在下载？",
+                    parent=self,
+                )
+                if confirmed:
+                    self._download_models(resume_processing=True)
+                return
 
         if self.organize_task.get() and not self.dry_run.get():
             extra = "，并生成订单日期 Excel 报告" if self.order_date_task.get() else ""
@@ -398,6 +461,10 @@ class InvoiceAttachmentApp(tk.Tk):
                     self._finish_success(payload)
                 elif event == "error":
                     self._finish_error(payload)
+                elif event == "model_done":
+                    self._finish_model_download(payload)
+                elif event == "model_error":
+                    self._finish_model_error(payload)
         except queue.Empty:
             pass
         self.after(100, self._poll_events)
@@ -425,6 +492,8 @@ class InvoiceAttachmentApp(tk.Tk):
             "ocr": "缓存/OCR",
             "rules": "日期规则",
             "excel": "Excel 报告",
+            "model_download": "下载模型",
+            "model_done": "安装模型",
         }
         stage = str(payload.get("stage", ""))
         current = int(payload.get("current", 0) or 0)
@@ -438,6 +507,30 @@ class InvoiceAttachmentApp(tk.Tk):
             self.stats_text.set(
                 f"自动通过 {payload.get('accepted', 0)} ｜ 待复核 {payload.get('review', 0)} ｜ 失败 {payload.get('failed', 0)}"
             )
+
+    def _finish_model_download(self, status):
+        resume = self.resume_after_model_download
+        self.model_downloading = False
+        self.resume_after_model_download = False
+        self.progress.grid_remove()
+        self.start_button.configure(state="normal")
+        self.model_button.configure(state="normal")
+        self.model_status_text.set("模型已就绪")
+        self.status_text.set(status.message)
+        if resume:
+            self.after(100, self._start_processing)
+        else:
+            messagebox.showinfo("模型安装完成", status.message, parent=self)
+
+    def _finish_model_error(self, message):
+        self.model_downloading = False
+        self.resume_after_model_download = False
+        self.progress.grid_remove()
+        self.start_button.configure(state="normal")
+        self.model_button.configure(state="normal")
+        self._refresh_model_status()
+        self.status_text.set("模型下载失败，请查看日志")
+        messagebox.showerror("模型下载失败", message, parent=self)
 
     def _finish_success(self, payload):
         self._reset_running_state()
@@ -468,13 +561,20 @@ class InvoiceAttachmentApp(tk.Tk):
         messagebox.showerror("处理失败", message, parent=self)
 
     def _on_close(self):
-        if self.running:
+        if self.running or self.model_downloading:
             messagebox.showwarning("正在处理", "请等待当前处理完成后再关闭。", parent=self)
             return
         self.destroy()
 
 
 def main():
+    if "--version" in sys.argv[1:]:
+        print(__version__)
+        return
+    if "--model-status" in sys.argv[1:]:
+        status = inspect_models()
+        print(f"{'READY' if status.ready else 'NOT_READY'}: {status.message}")
+        raise SystemExit(0 if status.ready else 1)
     app = InvoiceAttachmentApp()
     app.mainloop()
 
