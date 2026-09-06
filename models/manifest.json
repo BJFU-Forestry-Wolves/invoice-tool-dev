@@ -1,6 +1,13 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "status": "p0-local-verified",
+  "bundle": {
+    "version": "ppocrv6-medium-models-v1",
+    "filename": "ppocrv6-medium-models-v1.zip",
+    "archive_bytes": 111112869,
+    "installed_bytes": 146035952,
+    "sha256": "cb4c6e2157fece7e4275fc899570108c4481ec73b2468db3eb3189d09a6615d7"
+  },
   "ocr_version": "PP-OCRv6",
   "paddleocr_version": "3.7.0",
   "paddlepaddle_version": "3.2.0",
