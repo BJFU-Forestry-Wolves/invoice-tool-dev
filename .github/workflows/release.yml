@@ -34,9 +34,11 @@ jobs:
       - name: Smoke test
         shell: pwsh
         run: |
-          .\dist\invoice_attachment_tool\invoice_attachment_tool.exe --version
-          .\dist\invoice_attachment_tool\invoice_attachment_tool.exe --model-status
-          if ($LASTEXITCODE -ne 1) { throw "未安装模型时 --model-status 应返回 1" }
+          $exe = ".\dist\invoice_attachment_tool\invoice_attachment_tool.exe"
+          $version = Start-Process -FilePath $exe -ArgumentList "--version" -Wait -PassThru -WindowStyle Hidden
+          if ($version.ExitCode -ne 0) { throw "--version 应返回 0，实际为 $($version.ExitCode)" }
+          $modelStatus = Start-Process -FilePath $exe -ArgumentList "--model-status" -Wait -PassThru -WindowStyle Hidden
+          if ($modelStatus.ExitCode -ne 1) { throw "未安装模型时 --model-status 应返回 1，实际为 $($modelStatus.ExitCode)" }
       - name: Package and checksum
         shell: pwsh
         run: |
