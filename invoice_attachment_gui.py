@@ -567,7 +567,15 @@ class InvoiceAttachmentApp(tk.Tk):
         self.destroy()
 
 
+def _configure_console():
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def main():
+    _configure_console()
     if "--version" in sys.argv[1:]:
         print(__version__)
         return
