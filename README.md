@@ -1,32 +1,54 @@
-# 报销附件整理与订单日期识别工具
+# 智能发票整理工具
 
-面向 Windows 的离线报销附件整理工具，可批量匹配和重命名发票/订单截图，使用 PaddleOCR 提取下单日期与发票销售方，并生成 Excel 复核报告。
+一款面向 Windows 的本地发票与订单附件整理工具。它可以批量匹配附件、统一文件名，并通过 OCR 提取订单日期和发票销售方，最后生成便于人工复核的 Excel 报告。
 
-> OCR 结果用于辅助整理，不能代替人工财务审核。真实报销数据应始终存放在源码仓库之外。
+所有业务文件默认只在本机处理。项目不会上传发票、订单截图或报销表格；只有在用户明确点击“一键获取模型”时，程序才会联网下载 OCR 模型。
 
-## 功能
+## 主要功能
 
-- 根据 CSV 数据表匹配、复制和重命名附件
-- 从 JPG、JPEG、PNG、BMP、PDF 中识别订单日期
-- 排除付款、发货、收货、退款和开票日期
-- 使用 SQLite 和文件哈希进行增量识别
-- 识别发票销售方并按可配置单日限额汇总
-- 按日期、人员和异常状态生成分类计划
-- 输出 Excel 汇总、识别明细、待复核项和运行统计
+- 按业务编号匹配发票和订单截图
+- 批量复制、分类并统一附件文件名
+- 从图片和 PDF 中识别订单下单日期
+- 识别发票销售方，按单日限额汇总
+- 缓存已经完成的 OCR 结果，避免重复识别
+- 输出识别明细、汇总结果和待人工复核项
+- 在应用内检查、下载和校验 OCR 模型
 
-## 快速开始
+支持 JPG、JPEG、PNG、BMP 和 PDF 附件。
 
-Windows Release 用户解压程序包后运行 `invoice_attachment_tool.exe`。首次使用 OCR 时点击“一键获取模型”，程序默认从本仓库的 `models-v1` Release 下载，失败后尝试配置的镜像。
+## 下载与使用
 
-源码运行要求 Python 3.11：
+### 下载 Windows 版本
+
+1. 打开项目的 [Releases 页面](https://github.com/BJFU-Forestry-Wolves/invoice-tool-dev/releases)。
+2. 下载最新版本中的 `invoice_attachment_tool-windows-x64.zip`。
+3. 解压到一个独立目录，不要直接在压缩包内运行。
+4. 双击 `invoice_attachment_tool.exe`。
+5. 第一次使用 OCR 时，在程序中点击 **一键获取模型**。
+
+程序支持 Windows 10/11 x64。OCR 模型单独发布，因此升级应用时通常不需要重新下载模型。
+
+### 从源码运行
+
+需要 Python 3.11：
 
 ```powershell
+git clone https://github.com/BJFU-Forestry-Wolves/invoice-tool-dev.git
+cd invoice-tool-dev
 python -m venv .ocr-venv
 .\.ocr-venv\Scripts\python.exe -m pip install -r requirements-runtime.txt
 .\.ocr-venv\Scripts\python.exe invoice_attachment_gui.py
 ```
 
-## 输入目录
+## 基本使用流程
+
+1. 准备数据表、发票目录和订单截图目录。
+2. 打开程序，选择数据表、附件根目录和输出目录。
+3. 选择需要执行的任务，并先进行预演检查。
+4. 确认匹配结果无误后，再执行正式整理。
+5. 打开输出目录，检查 Excel 报告中的待复核项目。
+
+推荐的附件目录结构：
 
 ```text
 附件根目录/
@@ -34,42 +56,82 @@ python -m venv .ocr-venv
 └─ 订单截图/
 ```
 
-附件使用 `BX` 加数字的业务编号命名，例如 `BX0001.pdf`、`BX0001(1).png`。CSV 至少应提供编号、上传人、用途、税后金额、发票和订单截图字段。
+附件名中需要包含可用于匹配的业务编号，例如 `BX0001.pdf`、`BX0001(1).png`。数据表至少需要提供编号、上传人、用途、金额以及附件数量等信息。
 
-## 界面预览
+> OCR 结果只用于辅助整理，不能替代人工财务审核。正式归档前请检查待复核项目和汇总金额。
 
-公开前可将不含真实姓名、编号、金额和路径的截图保存为 `docs/images/app.png`，再在这里补充图片链接。
+## OCR 模型
 
-## 命令行
+程序包不内置约 146 MB 的 OCR 模型。首次使用时可以直接在界面中选择下载来源：
+
+- **自动**：先尝试 GitHub Release，失败后尝试已配置的镜像
+- **GitHub**：只从本项目的模型 Release 下载
+- **镜像**：只从维护者配置的镜像下载
+
+模型会安装到 `%LOCALAPPDATA%\InvoiceAttachmentTool\models`。下载和安装过程会校验 SHA-256；安装失败不会覆盖原有的可用模型。
+
+也可以通过命令行管理模型：
 
 ```powershell
-python rename_invoices_orders.py --csv <数据.csv> --attach-root <附件目录> --output-dir <输出目录> --dry-run
-python order_date_report_cli.py --csv <数据.csv> --attach-root <附件目录> --output-dir <输出目录>
 python model_manager_cli.py status
 python model_manager_cli.py download --source auto
 python model_manager_cli.py verify
 ```
 
-开票方和通用分类：
-
-```powershell
-python invoice_issuer_cli.py --manifest <分类清单.json> --attach-root <附件目录> --output-dir <输出目录> --daily-limit 1000
-python classify_attachments.py --workbook <主工作簿.xlsx> --attach-root <附件目录> --rules-json <规则结果.json> --manual-labels <人工标注.xlsx> --reference-dir <更新附件目录> --output-dir <分类目录> --invoice-only-threshold 200 --dry-run
-```
+模型发布和镜像配置说明见 [docs/model-distribution.md](docs/model-distribution.md)。
 
 ## 文件名模板
 
-默认模板为 `{编号}_{上传人}_{用途}_{金额}_{附件标记}`。还可使用 `{下单日期}`、`{附件类型}`、`{序号}` 和 `{总数}`。建议保留 `{编号}` 与 `{附件标记}` 以避免重名。
+默认模板为：
 
-## 模型与隐私
+```text
+{编号}_{上传人}_{用途}_{金额}_{附件标记}
+```
 
-- 模型默认安装在 `%LOCALAPPDATA%\InvoiceAttachmentTool\models`，不进入 Git。
-- 下载包和安装文件均通过 SHA-256 校验，安装失败不会覆盖已有可用模型。
-- 模型源配置见 `config/release.json`，镜像也可通过 `INVOICE_TOOL_MODEL_MIRROR` 设置。
-- CSV、Excel、PDF、图片、OCR JSON 和 SQLite 缓存均被 `.gitignore` 排除。
-- 提交前运行 `python scripts/privacy_check.py --scope all` 和 `--scope history`。
+还可以使用 `{下单日期}`、`{附件类型}`、`{序号}` 和 `{总数}`。建议始终保留 `{编号}` 与 `{附件标记}`，避免不同附件生成相同文件名。
 
-## 开发
+## 命令行工具
+
+普通用户建议使用图形界面。以下入口适合批处理和二次开发：
+
+```powershell
+# 匹配和整理附件
+python rename_invoices_orders.py --csv <数据.csv> --attach-root <附件目录> --output-dir <输出目录> --dry-run
+
+# 识别订单日期并生成报告
+python order_date_report_cli.py --csv <数据.csv> --attach-root <附件目录> --output-dir <输出目录>
+
+# 识别发票销售方并设置单日限额
+python invoice_issuer_cli.py --manifest <分类清单.json> --attach-root <附件目录> --output-dir <输出目录> --daily-limit 1000
+
+# 生成通用分类计划
+python classify_attachments.py --workbook <数据.xlsx> --attach-root <附件目录> --rules-json <规则结果.json> --manual-labels <人工标注.xlsx> --reference-dir <参考附件目录> --output-dir <分类目录> --invoice-only-threshold 200 --dry-run
+```
+
+正式执行前建议保留 `--dry-run`，先检查计划结果。
+
+## 数据安全与隐私
+
+- CSV、Excel、PDF、图片、OCR 结果和缓存文件默认不会进入 Git
+- 输出目录和真实业务数据应放在源码仓库之外
+- 项目提供提交前隐私扫描，检查身份证号、手机号、银行卡号、密钥、本机用户路径等内容
+- 如发现安全问题，请不要公开提交 Issue，处理方式见 [SECURITY.md](SECURITY.md)
+
+隐私扫描命令：
+
+```powershell
+python scripts/privacy_check.py --scope all
+python scripts/privacy_check.py --scope history
+```
+
+## 已知限制
+
+- OCR 准确率会受到截图清晰度、平台版式和图片分辨率影响
+- 模糊、裁切不完整或包含多个日期的附件可能需要人工确认
+- 为兼容部分 Paddle 推理组件，模型安装路径应尽量避免中文字符
+- 当前发布流程主要面向 Windows 10/11 x64
+
+## 开发与构建
 
 ```powershell
 python -m pip install -r requirements-dev.txt
@@ -77,13 +139,10 @@ python -m pytest -q
 .\build.ps1
 ```
 
-构建采用 PyInstaller `onedir`；模型作为独立 Release 资源分发，不嵌入程序。
+Windows 发布包使用 PyInstaller `onedir` 构建。推送 `v*` 标签后，GitHub Actions 会自动生成应用 ZIP 和 SHA-256 校验文件；OCR 模型通过独立的 `models-v1` Release 分发。
 
-## 限制
+参与开发前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。版本变化见 [CHANGELOG.md](CHANGELOG.md)。
 
-- 主要支持 Windows 10/11 x64。
-- 模型路径应避免中文字符，以兼容 Paddle 静态推理。
-- OCR 准确率受截图清晰度、平台版式和分辨率影响，异常状态必须人工复核。
-- 输出目录和缓存目录必须位于 Git 仓库外。
+## 许可证
 
-许可证见 [LICENSE](LICENSE)，第三方说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+项目代码采用 [MIT License](LICENSE)。PaddleOCR 等第三方组件和模型遵循各自许可证，详情见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
