@@ -23,6 +23,13 @@ PATTERNS = {
 SKIP_PATHS = {"scripts/privacy_check.py"}
 
 
+def _configure_console() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def _git(*args: str, check: bool = True) -> bytes:
     return subprocess.run(
         ["git", *args], cwd=ROOT, check=check, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -95,6 +102,7 @@ def scan_history() -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _configure_console()
     parser = argparse.ArgumentParser(description="扫描可能误提交的报销隐私和凭据")
     parser.add_argument("--scope", choices=("tracked", "staged", "all", "history"), default="all")
     args = parser.parse_args(argv)
